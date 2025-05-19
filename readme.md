@@ -1,6 +1,6 @@
-# ¡Bienvenido al Generador de Libros Ilustrados Interactivos! 🚀
+# ¡Bienvenido al Generador cuadernos de notas (prop books)! 🚀
 
-¿Listo para crear magia? Este proyecto es tu varita para transformar simples ideas en **increíbles libros ilustrados interactivos**.  Imagina un mundo donde solo necesitas una frase para dar vida a historias llenas de color y emoción. ¡Pues ese mundo es ahora!
+¿Listo para crear magia? Este proyecto es tu varita para transformar simples ideas en **increíbles páginas de cuaderno de notas**.  Imagina un mundo donde solo necesitas una frase para dar vida a historias llenas de color y emoción. ¡Pues ese mundo es ahora!
 
 ## ¿Cómo funciona esta maravilla?
 
