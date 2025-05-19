@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Libro de Notas Ilustrado</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            opacity: 0;
+            pointer-events: none; 
+        }
+        #notification.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        #notification.error {
+            background-color: #f87171; /* Tailwind red-400 */
+            color: #7f1d1d; /* Tailwind red-900 */
+        }
+        #notification.success {
+            background-color: #4ade80; /* Tailwind green-400 */
+            color: #14532d; /* Tailwind green-900 */
+        }
+        .loader { /* No se usa directamente si el spinner del botón es suficiente */
+            border: 4px solid #f3f3f3; 
+            border-top: 4px solid #3498db; 
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 flex flex-col items-center min-h-screen p-4 sm:p-6">
+
+    <div id="app-container" class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-3xl">
+        <h1 class="text-3xl sm:text-4xl font-bold text-sky-700 text-center mb-6 sm:mb-8">Libro de Notas Ilustrado Interactivo</h1>
+
+        <div id="notification"></div>
+
+        <div id="input-container" class="flex flex-col sm:flex-row gap-3 mb-8">
+            <input type="text" id="temaInput" placeholder="Introduce una frase o tema..." class="flex-grow p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-shadow text-base">
+            <button id="generarBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-300 ease-in-out flex items-center justify-center">
+                <span id="btnText">Generar Libro</span>
+                <svg id="btnSpinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div id="loading" class="text-center text-slate-600 mb-6 hidden items-center justify-center">
+             <span id="loadingText">Generando páginas, por favor espera...</span>
+        </div>
+
+        <div id="libroContainer" class="space-y-8">
+            </div>
+    </div>
+
+    <script>
+        const temaInput = document.getElementById('temaInput');
+        const generarBtn = document.getElementById('generarBtn');
+        const btnText = document.getElementById('btnText');
+        const btnSpinner = document.getElementById('btnSpinner');
+        const libroContainer = document.getElementById('libroContainer');
+        const loadingDiv = document.getElementById('loading');
+        const loadingText = document.getElementById('loadingText');
+        const notificationDiv = document.getElementById('notification');
+
+        const NUM_PAGINAS = 3; 
+        // Modelo de IA que te gustaría usar (puede ser configurado o cambiado)
+        const MODELO_IA_DESEADO = "microsoft/phi-3-mini-128k-instruct"; // Ejemplo, asegúrate que esté disponible y sea adecuado
+
+        function mostrarNotificacion(mensaje, tipo = 'error', duracion = 3000) {
+            notificationDiv.textContent = mensaje;
+            notificationDiv.className = ''; 
+            notificationDiv.classList.add(tipo, 'show');
+            
+            setTimeout(() => {
+                notificationDiv.classList.remove('show');
+            }, duracion);
+        }
+
+        // --- GENERACIÓN DE IMÁGENES (PLACEHOLDERS) ---
+        async function generarImagenPlaceholder(prompt, paginaIndex) {
+            const textoImagen = encodeURIComponent(`Ilustración sobre: ${prompt.substring(0,30)}... (Pág ${paginaIndex+1})`);
+            // Usamos placehold.co para placeholders
+            const imageUrl = `https://placehold.co/600x400/E0E7FF/4F46E5?text=${textoImagen}&font=inter`;
+            
+            await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300)); 
+            
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(imageUrl);
+                img.onerror = () => {
+                    console.warn(`Error al cargar imagen de placehold.co. Usando fallback.`);
+                    resolve(`https://placehold.co/600x400/FECACA/B91C1C?text=Error+Cargando&font=inter`);
+                };
+                img.src = imageUrl;
+            });
+        }
+
+        // --- GENERACIÓN DE TEXTO REAL (A TRAVÉS DE TU BACKEND) ---
+        // Esta función llama a TU PROPIO BACKEND que a su vez llamará a OpenRouter
+        async function generarTextoReal(promptUsuario, paginaIndex, modelo) {
+            // Este es el endpoint de TU backend que has creado
+            const endpointBackend = '/api/generar-texto'; // O la URL completa si está en otro servidor
+
+            try {
+                // La solicitud se hace a tu backend, no directamente a OpenRouter
+                const respuestaBackend = await fetch(endpointBackend, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // NO envías la clave API de OpenRouter aquí directamente desde el frontend
+                        // Podrías enviar una clave de autenticación para tu propio backend si es necesario
+                    },
+                    body: JSON.stringify({
+                        tema: promptUsuario, // El tema que el usuario ingresó
+                        pagina: paginaIndex + 1, // Información contextual adicional
+                        modeloDeseado: modelo // El modelo de IA que quieres que use el backend
+                    })
+                });
+
+                if (!respuestaBackend.ok) {
+                    const errorData = await respuestaBackend.json().catch(() => ({ error: "Error de backend con respuesta no JSON" }));
+                    console.error("Error desde el backend:", respuestaBackend.status, errorData);
+                    throw new Error(`Error del backend: ${respuestaBackend.statusText} - ${errorData.error || 'Detalles no disponibles'}`);
+                }
+
+                const data = await respuestaBackend.json();
+                // Asumimos que tu backend devuelve un objeto con una propiedad 'textoGenerado'
+                // Ejemplo: { textoGenerado: "Este es el texto de la IA..." }
+                if (!data.textoGenerado) {
+                    throw new Error("La respuesta del backend no contiene 'textoGenerado'.");
+                }
+                return data.textoGenerado;
+
+            } catch (error) {
+                console.error('Error al contactar el backend para generar texto:', error);
+                // Devolver un texto de fallback o re-lanzar el error
+                return `Error al generar texto: ${error.message}. (Contenido simulado por fallo en conexión con backend para página ${paginaIndex + 1})`;
+            }
+        }
+
+        /*
+        // EJEMPLO CONCEPTUAL DE TU BACKEND (Node.js con Express)
+        // ESTE CÓDIGO DEBE IR EN TU SERVIDOR, NO EN EL FRONTEND.
+        // Necesitarás instalar dependencias como express y node-fetch (o axios).
+
+        const express = require('express');
+        const fetch = require('node-fetch'); // o import fetch from 'node-fetch'; si usas ES Modules
+        const app = express();
+        app.use(express.json()); // Middleware para parsear JSON
+
+        // ¡IMPORTANTE! Carga tu clave API de OpenRouter desde variables de entorno en tu servidor.
+        // NO LA EXPONGAS EN EL CÓDIGO DEL FRONTEND.
+        const OPENROUTER_API_KEY = process.env.SK_OPENROUTER_API_KEY; 
+
+        if (!OPENROUTER_API_KEY) {
+            console.error("FATAL ERROR: La variable de entorno SK_OPENROUTER_API_KEY no está configurada.");
+            // Considera no iniciar el servidor o manejar esto de forma adecuada
+        }
+
+        app.post('/api/generar-texto', async (req, res) => {
+            const { tema, pagina, modeloDeseado } = req.body;
+
+            if (!tema) {
+                return res.status(400).json({ error: "El parámetro 'tema' es requerido." });
+            }
+            if (!OPENROUTER_API_KEY) {
+                 return res.status(500).json({ error: "La configuración del servidor para la API de IA no está completa." });
+            }
+
+            const modeloFinal = modeloDeseado || "microsoft/phi-3-mini-128k-instruct"; // Modelo por defecto si no se especifica
+
+            try {
+                console.log(`Solicitando texto a OpenRouter para el tema: "${tema}", página: ${pagina}, modelo: ${modeloFinal}`);
+                const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+                        "Content-Type": "application/json",
+                        // Opcional: puedes añadir cabeceras personalizadas que OpenRouter soporte
+                        // "HTTP-Referer": "TU_SITIO_WEB", // Reemplaza con tu sitio
+                        // "X-Title": "Generador Libro Ilustrado" // Reemplaza con el título de tu app
+                    },
+                    body: JSON.stringify({
+                        "model": modeloFinal,
+                        "messages": [
+                            { "role": "system", "content": "Eres un asistente creativo que escribe contenido para libros ilustrados. Sé conciso y evocador." },
+                            { "role": "user", "content": `Escribe un párrafo corto (3-5 frases) y evocador sobre "${tema}" para la página ${pagina} de un libro ilustrado interactivo.` }
+                        ],
+                        // "max_tokens": 150, // Puedes ajustar esto
+                        // "temperature": 0.7 // Puedes ajustar esto
+                    })
+                });
+
+                if (!openRouterResponse.ok) {
+                    const errorText = await openRouterResponse.text(); // Obtener texto para depuración
+                    console.error(`Error desde OpenRouter (${openRouterResponse.status}): ${errorText}`);
+                    let errorJson = null;
+                    try {
+                        errorJson = JSON.parse(errorText);
+                    } catch (e) {
+                        // No era JSON, usar el texto plano
+                    }
+                    return res.status(openRouterResponse.status).json({ 
+                        error: "Error al llamar a la API de OpenRouter", 
+                        details: errorJson || errorText 
+                    });
+                }
+
+                const data = await openRouterResponse.json();
+                
+                if (data.choices && data.choices.length > 0 && data.choices[0].message && data.choices[0].message.content) {
+                    const textoGenerado = data.choices[0].message.content.trim();
+                    console.log(`Texto generado para "${tema}": ${textoGenerado.substring(0, 100)}...`);
+                    res.json({ textoGenerado });
+                } else {
+                    console.error("Respuesta inesperada de OpenRouter:", data);
+                    res.status(500).json({ error: "La respuesta de la API de OpenRouter no tuvo el formato esperado." });
+                }
+
+            } catch (error) {
+                console.error("Error en el servidor al procesar la solicitud /api/generar-texto:", error);
+                res.status(500).json({ error: "Error interno del servidor al generar texto." });
+            }
+        });
+
+        // const PORT = process.env.PORT || 3000;
+        // app.listen(PORT, () => {
+        //     console.log(`Servidor backend escuchando en http://localhost:${PORT}`);
+        //     if (!OPENROUTER_API_KEY) {
+        //        console.warn("ADVERTENCIA: La clave API de OpenRouter (SK_OPENROUTER_API_KEY) no está configurada en las variables de entorno. Las llamadas a la IA fallarán.");
+        //     }
+        // });
+        */
+        // --- FIN EJEMPLO CONCEPTUAL DE BACKEND ---
+
+
+        generarBtn.addEventListener('click', async () => {
+            const tema = temaInput.value.trim();
+            if (!tema) {
+                mostrarNotificacion('Por favor, introduce un tema o frase.', 'error');
+                temaInput.focus();
+                return;
+            }
+
+            generarBtn.disabled = true;
+            btnText.textContent = 'Generando...';
+            btnSpinner.classList.remove('hidden');
+            loadingDiv.classList.remove('hidden');
+            loadingDiv.classList.add('flex'); 
+            libroContainer.innerHTML = ''; 
+
+            try {
+                for (let i = 0; i < NUM_PAGINAS; i++) {
+                    loadingText.textContent = `Generando página ${i + 1} de ${NUM_PAGINAS}... (Usando IA real)`;
+
+                    const promptImagen = `${tema}, ilustración conceptual, página ${i+1}`;
+                    
+                    // Llamada a la función para generar texto real y para generar imagen (placeholder)
+                    const [imageUrl, textoPagina] = await Promise.all([
+                        generarImagenPlaceholder(promptImagen, i),
+                        generarTextoReal(tema, i, MODELO_IA_DESEADO) // Llamada a la nueva función
+                    ]);
+                    
+                    crearElementoPagina(imageUrl, textoPagina, tema, i + 1);
+                }
+                mostrarNotificacion('¡Libro generado con éxito usando IA (texto)!', 'success');
+            } catch (error) {
+                console.error("Error durante la generación del libro:", error);
+                libroContainer.innerHTML = `<p class="text-red-600 text-center p-4 bg-red-100 rounded-lg">Ocurrió un error al generar el libro: ${error.message}. Por favor, inténtalo de nuevo.</p>`;
+                mostrarNotificacion(`Error al generar el libro: ${error.message}`, 'error', 5000);
+            } finally {
+                generarBtn.disabled = false;
+                btnText.textContent = 'Generar Libro';
+                btnSpinner.classList.add('hidden');
+                loadingDiv.classList.add('hidden');
+                loadingDiv.classList.remove('flex');
+                loadingText.textContent = 'Generando páginas, por favor espera...';
+            }
+        });
+
+        function crearElementoPagina(imageUrl, texto, tema, numeroPagina) {
+            const paginaDiv = document.createElement('div');
+            paginaDiv.className = 'bg-slate-50 border border-slate-200 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300';
+
+            const tituloPagina = document.createElement('h2');
+            tituloPagina.className = 'text-xl sm:text-2xl font-semibold text-sky-600 mb-4 text-center sm:text-left';
+            tituloPagina.textContent = `Página ${numeroPagina}: ${tema}`;
+
+            const imgElement = document.createElement('img');
+            imgElement.className = 'w-full h-auto object-cover rounded-md mb-4 shadow-md bg-slate-200';
+            imgElement.src = imageUrl;
+            imgElement.alt = `Ilustración para ${tema} - Página ${numeroPagina}`;
+            imgElement.onerror = function() {
+                this.src = `https://placehold.co/600x400/FECACA/B91C1C?text=Error+Imagen&font=inter`;
+                this.alt = 'Error al cargar la imagen';
+            };
+
+            const textoElement = document.createElement('p');
+            textoElement.className = 'text-slate-700 text-base leading-relaxed text-justify';
+            // Para asegurar que los saltos de línea del texto generado se respeten:
+            textoElement.style.whiteSpace = 'pre-wrap'; 
+            textoElement.textContent = texto;
+
+            paginaDiv.appendChild(tituloPagina);
+            paginaDiv.appendChild(imgElement);
+            paginaDiv.appendChild(textoElement);
+            libroContainer.appendChild(paginaDiv);
+        }
+
+        temaInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); 
+                if (!generarBtn.disabled) { 
+                    generarBtn.click();
+                }
+            }
+        });
+
+        console.log("Nota: La generación de texto ahora intenta llamar a un backend en '/api/generar-texto'. Debes implementar este backend para que funcione con OpenRouter.");
+        console.log("La generación de imágenes sigue utilizando placeholders. Para imágenes reales generadas por IA, necesitarías una integración similar con un backend y una API de imágenes.");
+    </script>
+</body>
+</html>
