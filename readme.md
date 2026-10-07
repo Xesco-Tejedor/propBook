@@ -1,22 +1,30 @@
-# ¡Bienvenido al Generador cuadernos de notas (prop books)! 🚀
+# propBook: cuadernos ilustrados con IA
 
-¿Listo para crear magia? Este proyecto es tu varita para transformar simples ideas en **increíbles páginas de cuaderno de notas**.  Imagina un mundo donde solo necesitas una frase para dar vida a historias llenas de color y emoción. ¡Pues ese mundo es ahora!
+A partir de una frase o tema, propBook genera tres páginas de texto creativo y una ilustración nueva para cada página. Las imágenes ya no son ejemplos: se generan con FLUX.1 Schnell a partir del tema y del texto de esa página.
 
-## ¿Cómo funciona esta maravilla?
+## Usar la app
 
-1.  **Introduce tu tema:** Escribe esa frase, esa palabra, esa chispa que tienes en la cabeza. ¡No te cortes!
-2.  **¡Dale al botón "Generar Libro"!** Prepárate para la acción. 
-3.  **Espera un poquito:** Nuestro motor de creatividad se pone en marcha, tejiendo palabras e imágenes.
-4.  **¡Voilà!** Tu libro aparece ante tus ojos, listo para ser disfrutado.
+1. Abre https://xesco-tejedor.github.io/propBook/ .
+2. Escribe un tema y pulsa "Generar Libro".
+3. Espera al texto y a las tres ilustraciones. El estado indica qué se está generando.
 
-## ¿Qué hay detrás de la magia?
+La versión publicada ya tiene los servicios conectados. No necesitas configurar un backend ni introducir claves para usarla.
 
-Este no es un simple truco. Usamos la potencia de la IA para generar textos evocadores y, aunque ahora las imágenes son placeholders, ¡el futuro es brillante!
+## Cómo funciona
 
-* **Texto Inteligente:** El contenido de cada página se genera con un modelo de IA, ¡directo desde tu idea! (Ojo: Necesitas configurar tu propio backend para conectar con la IA). 
-* **Imágenes Asombrosas (¡Próximamente!):** Por ahora usamos imágenes de ejemplo, pero estamos trabajando para que la IA también cree las ilustraciones. 
-* **Diseño que enamora:** Con Tailwind CSS, cada libro es una obra de arte, con una interfaz limpia y moderna.
+- Texto: Gemini, con OpenRouter y un modelo gratuito como respaldo.
+- Ilustraciones: FLUX.1 Schnell mediante Cloudflare Workers AI, una imagen por página.
+- Interfaz: HTML, JavaScript y Tailwind CSS.
+- Las claves del servicio de texto permanecen en el servidor, no en el código público. Workers AI utiliza una vinculación del servidor, sin clave en el navegador.
 
-## ¡Atrévete a crear!
+## Límites y privacidad
 
-Este proyecto es más que código, ¡es una invitación a la imaginación!  Así que, ¿qué esperas?  ¡Deja volar tu creatividad y construye mundos increíbles con el Generador de Libros Ilustrados Interactivos!
+Se utilizan cuotas gratuitas. La generación puede tardar varios minutos o fallar si se agota una cuota o el proveedor está ocupado. No se activa ningún plan de pago. El texto comparte cuotas con las otras apps; las imágenes usan la cuota gratuita de Workers AI de la cuenta.
+
+El tema y el texto se envían a los proveedores de IA. No introduzcas datos privados. Las imágenes pueden interpretar libremente las escenas y no garantizan personajes idénticos entre páginas.
+
+No hay guardado de libros ni exportación: al recargar se pierde el resultado. Si falla una ilustración, se muestra el error y se conservan las páginas que ya se habían generado, sin anunciar éxito completo ni sustituirlas por imágenes de ejemplo.
+
+## Desarrollo
+
+La app publicada está en `index.html`. Las carpetas `backend/` y `src/` y los documentos de instalación anteriores conservan la versión histórica con backend local; no son pasos necesarios para utilizar la app publicada actual. Una copia o despliegue propio necesita sus propios servicios y configuración.
