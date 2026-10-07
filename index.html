@@ -54,7 +54,7 @@
 
     <div id="app-container" class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-3xl">
         <h1 class="text-3xl sm:text-4xl font-bold text-sky-700 text-center mb-6 sm:mb-8">propBook · Libro de Notas Ilustrado</h1>
-<p class="text-slate-600 text-center mb-6">Crea tres páginas a partir de un tema. Texto con IA gratuita; imágenes decorativas de ejemplo, no generadas por IA. El tema se envía al proveedor de IA. No introduzcas datos privados. Las cuotas se comparten con las otras apps.</p>
+<p class="text-slate-600 text-center mb-6">Crea tres páginas a partir de un tema. Texto e ilustraciones generados con IA: Gemini/OpenRouter y FLUX.1 Schnell. El tema y el texto de cada página se envían a estos proveedores. No introduzcas datos privados. Las cuotas se comparten con las otras apps.</p>
 
         <div id="notification"></div>
 
@@ -101,10 +101,21 @@
             }, duracion);
         }
 
-        // Una imagen decorativa local: no API externa ni espera por placeholders.
-        async function generarImagenPlaceholder(prompt, paginaIndex) {
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240" viewBox="0 0 600 240"><rect width="600" height="240" fill="#e0e7ff"/><circle cx="${130 + paginaIndex*130}" cy="110" r="65" fill="#c7d2fe"/><path d="M100 180Q300 80 500 180" fill="none" stroke="#4f46e5" stroke-width="3"/><text x="300" y="210" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#4338ca">Imagen decorativa de ejemplo · Página ${paginaIndex+1}</text></svg>`;
-            return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+        const IMAGE_API = "https://propbook-images.francesc-adria-perello.workers.dev/";
+        async function generarImagen(prompt) {
+            const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 120000);
+            try {
+                const response = await fetch(IMAGE_API, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:prompt.slice(0,2048)}), signal:ctrl.signal});
+                const data = await response.json();
+                if (!response.ok || !data.image?.startsWith('data:image/jpeg;base64,')) throw new Error('No se pudo generar la ilustración. Cuota gratuita agotada o servicio ocupado. Inténtalo más tarde.');
+                const image = new Image();
+                image.src = data.image;
+                await image.decode();
+                return data.image;
+            } catch (error) {
+                if (error.name === 'AbortError') throw new Error('La ilustración ha tardado demasiado. Inténtalo más tarde.');
+                throw error;
+            } finally {clearTimeout(timer);}
         }
 
         async function generarPaginas(tema) {
@@ -155,25 +166,24 @@
             try {
                 const paginas = await generarPaginas(tema);
                 for (let i = 0; i < NUM_PAGINAS; i++) {
-                    loadingText.textContent = `Preparando página ${i + 1} de ${NUM_PAGINAS}...`;
+                    loadingText.textContent = `Generando ilustración con IA ${i + 1} de ${NUM_PAGINAS}...`;
 
-                    const promptImagen = `${tema}, ilustración conceptual, página ${i+1}`;
+                    const promptImagen = `Storybook illustration, watercolor, warm light, coherent visual style, no letters or text. Theme: ${tema}. Scene for page ${i+1}: ${paginas[i]}`;
                     
-                    // Llamada a la función para generar texto real y para generar imagen (placeholder)
+                    // Ilustración nueva basada en el texto de esta página.
                     const [imageUrl, textoPagina] = await Promise.all([
-                        generarImagenPlaceholder(promptImagen, i),
+                        generarImagen(promptImagen),
                         Promise.resolve(paginas[i])
                     ]);
                     
                     crearElementoPagina(imageUrl, textoPagina, tema, i + 1);
                 }
-                mostrarNotificacion('¡Libro generado con éxito usando IA (texto)!', 'success');
+                mostrarNotificacion('¡Libro generado con texto e ilustraciones de IA!', 'success');
             } catch (error) {
                 console.error("Error durante la generación del libro:", error);
-                libroContainer.replaceChildren();
                 const aviso = document.createElement('p');
                 aviso.className = 'text-red-600 text-center p-4 bg-red-100 rounded-lg';
-                aviso.textContent = 'No se ha generado el libro. ' + error.message;
+                aviso.textContent = (libroContainer.children.length ? 'Libro incompleto: las páginas ya generadas siguen visibles. ' : 'No se ha generado el libro. ') + error.message;
                 libroContainer.appendChild(aviso);
                 mostrarNotificacion(`Error al generar el libro: ${error.message}`, 'error', 5000);
             } finally {
@@ -219,8 +229,6 @@
             }
         });
 
-        console.log("Nota: La generación de texto ahora intenta llamar a un backend en '/api/generar-texto'. Debes implementar este backend para que funcione con OpenRouter.");
-        console.log("La generación de imágenes sigue utilizando placeholders. Para imágenes reales generadas por IA, necesitarías una integración similar con un backend y una API de imágenes.");
     </script>
 </body>
 </html>
